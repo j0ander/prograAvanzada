@@ -1,0 +1,143 @@
+package com.prog_avanzada.myapplications;
+
+import android.opengl.GLES20;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+
+public class Point {
+
+    //ATRIBUTOS PRINCIPALES
+    private final FloatBuffer vertexBuffer;
+    // almacena coordenadas de manera que OPENGL las pueda interpretar
+    private final int mProgram;
+    // identificador del programa que une los shaders
+    private int positionHandle, colorHandle;
+// ¡! Almacenan los identificadores para acceder/identificar a las variables de los shaders
+
+
+    //ATRIBUTOS PARA VÉRTICES
+
+    //para especificar el tamaño de coordenadas de cada vértice
+    //cada vértice tiene 3 coordenadas (3D)
+    static final int COORDS_POR_VERTEX = 3;
+
+    //las coordenadas de los vértices siempre serán arreglos
+    //el arreglo de coordenadas depende del número de vértices
+    //coordenadas de cada uno de los vértices
+    static float pointCoord[] = {0.0f, 0.0f, 0.0f};
+
+    ///
+    //contar el número de vértices
+    private final int vertexCount = pointCoord.length/COORDS_POR_VERTEX;
+    //define cuantos bytes ocupa cada vértice en el buffer
+    //(cada coordenada de flotantes representa 4 bytes de memoria)
+    private final int vertexStride = COORDS_POR_VERTEX*4;
+    //color a la figura
+    float color[]={1.0f, 0.0f, 0.0f, 1.0f};
+
+    //CONSTRUCTOR: crea el buffer para enviar las coordenadas a la gpu
+    //compila shader
+    //crea el programa opengl para render
+    public Point(){
+        //reserva de memoria para que la gpu lo lea directo + rápido
+        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(pointCoord.length*4);
+        //que la ejecución utilice el orden propuesto
+        byteBuffer.order(ByteOrder.nativeOrder());
+
+        vertexBuffer = byteBuffer.asFloatBuffer();
+        //copiar las coordenadas hacia el buffer que va al gpu
+        vertexBuffer.put(pointCoord);
+        //situar el cursor en el centro
+        vertexBuffer.position(0);
+
+        //Se encarga del primer shader
+        //Se repite en todas las primitivas
+        int vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexShaderCode);
+        int fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShaderCode);
+
+        //Crear el programa vacio en la GPU
+        //Es un contenedor que une los dos shaders, fragment y vertex
+        mProgram = GLES20.glCreateProgram();
+        //Agrega los dos shaders al programa
+        GLES20.glAttachShader(mProgram, vertexShader);
+        GLES20.glAttachShader(mProgram, fragmentShader);
+        //Revisar que los shaders sean compatibles
+        GLES20.glLinkProgram(mProgram);
+
+    }
+
+    //Metodo que dibuja los vertices
+    //Especifica como se construye la primitiva
+    public void draw(){
+        //Usa el programa de shader definida en el constructor
+        GLES20.glUseProgram(mProgram);
+
+
+        //Obtener la prosicion
+        //Activar el arreglo de vertices
+        //Especificar como leer los datos del buffer
+        //Para posteriormente definir el color, dibujar y finalizar desactivando el arreglo (Proceso de limpieza)
+
+        //Las prosiciones vienen del vertexShader en un atributo del GLSL
+        positionHandle = GLES20.glGetAttribLocation(mProgram, "vPosition");
+        //Activacion del arreglo de vertices que vienen del vertexShader
+        GLES20.glEnableVertexAttribArray(positionHandle);
+        //Indicar lo necesario para que la GPU pueda construir la primitiva
+        GLES20.glVertexAttribPointer(positionHandle, //Posicion
+                COORDS_POR_VERTEX, //Coordenadas de los vertices
+                GLES20.GL_FLOAT, //Que tipo de datos se usa
+                false, //Si necesitar normalizar los datos
+                vertexStride, //tamaño de memoria
+                vertexBuffer //De donde tomarlos
+        );
+
+        //El id y de donde viene el color
+        colorHandle = GLES20.glGetUniformLocation(mProgram, "vColor");
+        //Es como un vector
+        GLES20.glUniform4fv(colorHandle, 1,color, 0);
+        //Metodo diseñado para graficar el punto
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, vertexCount);
+        //Limpieza de memoria
+        GLES20.glDisableVertexAttribArray(positionHandle);
+    }
+
+    //Se usa el metodo de forma general en otras figuras
+    private int loadShader(int type, String shaderCode){
+        //type puede ser vertex o fragment, a shader se le da un id
+        int shader = GLES20.glCreateShader(type);
+        //shaderCode en string interpretado por GLES20
+        GLES20.glShaderSource(shader, shaderCode);
+        //Implementar completamente el shader
+        GLES20.glCompileShader(shader);
+        return shader;
+    }
+
+    public Point(float[] color, FloatBuffer vertexBuffer, int mProgram, int colorHandle, int positionHandle) {
+        this.color = color;
+        this.vertexBuffer = vertexBuffer;
+        this.mProgram = mProgram;
+        this.colorHandle = colorHandle;
+        this.positionHandle = positionHandle;
+    }
+
+    //Se trata las posiciones
+    //vec4 vector de 4 coordenadas, es por que dentro esta xyzw
+    //w siempre es 1
+    private final String vertexShaderCode =
+            "attribute vec4 vPosition;"+
+            "void main(){" +
+            "gl_Position = vPosition;"+
+                    "gl_PointSize = 100.0;"+
+            "}"; //A cada coordenada de pantalla se asocia con una real
+
+    //La presicion da informacion precisa del grafico
+    private final String fragmentShaderCode =
+            "precision mediump float;"+
+            "uniform vec4 vColor;" +
+            "void main(){"+
+            "gl_FragColor = vColor;"+
+            "}";
+
+}
